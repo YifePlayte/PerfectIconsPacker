@@ -1,0 +1,23 @@
+# Gradle / Android
+.gradle/
+build/
+# ...but never a source package named build/ (e.g. domain/build)
+!**/src/**/build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local reference material (large, not part of the project)
+tmp/
+
+# Signing
+*.jks
+*.keystore
+signing.properties
+
+# OS
+.DS_Store
+Thumbs.db

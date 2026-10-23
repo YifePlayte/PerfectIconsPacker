@@ -1,0 +1,8 @@
+* text=auto
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.zip binary
+*.jar binary
+*.keystore binary
