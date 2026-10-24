@@ -10,19 +10,43 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@v4
+        uses: gradle/actions/wrapper-validation@v6
 
       - name: Set up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
+
+      # The keystore is stored as one base64 secret; this turns it back into a
+      # file the Gradle signingConfig can point at. Without the secret the
+      # release APK stays unsigned, so forks and pull requests still build.
+      - name: Decode signing keystore
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          if [ -z "$SIGNING_KEYSTORE_BASE64" ]; then
+            echo "SIGNING_KEYSTORE_BASE64 is not set; building an unsigned release APK."
+            exit 0
+          fi
+          keystore="$RUNNER_TEMP/release.jks"
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          {
+            echo "SIGNING_STORE_FILE=$keystore"
+            echo "SIGNING_STORE_PASSWORD=$SIGNING_STORE_PASSWORD"
+            echo "SIGNING_KEY_ALIAS=$SIGNING_KEY_ALIAS"
+            echo "SIGNING_KEY_PASSWORD=$SIGNING_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
 
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --console=plain
@@ -35,21 +59,28 @@ jobs:
       - name: Assemble release
         run: ./gradlew :app:assembleRelease --console=plain
 
+      # Test reports are a directory tree, so these stay archived (zipped).
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: app/build/reports/tests/testDebugUnitTest
 
+      # APKs are already compressed archives; uploading them unzipped keeps the
+      # .apk extension so the download is directly installable. `archive: false`
+      # ignores `name` and uses the file name instead; it also requires the path
+      # to resolve to exactly one file.
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: app-debug
           path: app/build/outputs/apk/debug/*.apk
+          archive: false
+          if-no-files-found: error
 
       - name: Upload release APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: app-release-unsigned
           path: app/build/outputs/apk/release/*.apk
+          archive: false
+          if-no-files-found: error

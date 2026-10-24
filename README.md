@@ -24,6 +24,57 @@
 - 图标资源仓库只读：不修改、不提交、不执行其中任何脚本。
 - 参考项目 `Perfect-Icons-APP` 中的 shell 脚本**禁止执行**，其中大量变量需要外部注入。
 
+## 构建与签名
+
+CI 默认产出未签名 APK。配置签名后，`assembleRelease` 会输出已签名的 `app-release.apk`。
+
+签名参数全部通过环境变量读取（见 `app/build.gradle.kts`）：
+
+| 环境变量 | 含义 |
+| --- | --- |
+| `SIGNING_STORE_FILE` | jks 文件路径 |
+| `SIGNING_STORE_PASSWORD` | keystore 密码 |
+| `SIGNING_KEY_ALIAS` | 密钥别名 |
+| `SIGNING_KEY_PASSWORD` | 密钥密码 |
+
+只要 `SIGNING_STORE_FILE` 非空，release 就会用这套配置签名。
+
+### CI 签名
+
+在 **Settings → Secrets and variables → Actions** 添加四个 secret：
+
+| Secret | 内容 |
+| --- | --- |
+| `SIGNING_KEYSTORE_BASE64` | jks 的 base64 文本 |
+| `SIGNING_STORE_PASSWORD` | keystore 密码 |
+| `SIGNING_KEY_ALIAS` | 密钥别名 |
+| `SIGNING_KEY_PASSWORD` | 密钥密码 |
+
+把 jks 转成单行 base64：
+
+```bash
+base64 -w0 release.jks
+```
+
+工作流把 base64 解码到 `$RUNNER_TEMP/release.jks`，再把四个变量写入 `$GITHUB_ENV` 供 Gradle 使用。
+未配置 `SIGNING_KEYSTORE_BASE64` 时（fork、PR）自动跳过，仍然产出未签名 APK。
+
+### 本地签名
+
+```bash
+SIGNING_STORE_FILE=/绝对路径/release.jks \
+SIGNING_STORE_PASSWORD=**** \
+SIGNING_KEY_ALIAS=your-alias \
+SIGNING_KEY_PASSWORD=**** \
+./gradlew :app:assembleRelease
+```
+
+### 校验签名
+
+```bash
+apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk
+```
+
 ## 许可证
 
 本项目基于 [GPL-3.0](LICENSE) 发布。
