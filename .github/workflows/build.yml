@@ -67,20 +67,19 @@ jobs:
           name: test-reports
           path: app/build/reports/tests/testDebugUnitTest
 
-      # APKs are already compressed archives; uploading them unzipped keeps the
-      # .apk extension so the download is directly installable. `archive: false`
-      # ignores `name` and uses the file name instead; it also requires the path
-      # to resolve to exactly one file.
+      # APKs are uploaded as archived artifacts. Actions can serve single-file
+      # artifacts unzipped, but nightly.link only understands zipped ones, so
+      # `archive: false` would make the nightly downloads unavailable.
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
+          name: app-debug
           path: app/build/outputs/apk/debug/*.apk
-          archive: false
           if-no-files-found: error
 
       - name: Upload release APK
         uses: actions/upload-artifact@v7
         with:
+          name: app-release
           path: app/build/outputs/apk/release/*.apk
-          archive: false
           if-no-files-found: error

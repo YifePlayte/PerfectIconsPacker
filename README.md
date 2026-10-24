@@ -76,6 +76,23 @@ SIGNING_KEY_PASSWORD=**** \
 apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk
 ```
 
+### CI 产物
+
+每次构建上传三个 artifact，APK 以 zip 压缩包形式提供（[nightly.link](https://nightly.link)
+只支持 `*.zip` 下载，这也是不能用 `archive: false` 的原因）：
+
+| Artifact | 内容 |
+| --- | --- |
+| `app-debug` | `app-debug.apk` |
+| `app-release` | `app-release.apk`（未配置签名时为未签名包） |
+| `test-reports` | 单元测试报告目录 |
+
+免登录下载最新构建：
+
+```text
+https://nightly.link/YifePlayte/PerfectIconsPacker/workflows/build/main/app-release.zip
+```
+
 ## 许可证
 
 本项目基于 [GPL-3.0](LICENSE) 发布。
