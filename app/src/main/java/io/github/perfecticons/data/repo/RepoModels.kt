@@ -15,6 +15,12 @@ data class RepoSnapshot(
     val styles: List<String>,
     val syncedAt: Long,
     val files: List<RepoFile>,
+    /**
+     * Upstream repository the snapshot was fetched from. Null for snapshots
+     * written before this field existed. Compared against the configured
+     * repository to flag a snapshot that came from somewhere else.
+     */
+    val sourceRepo: String? = null,
 ) {
     val totalBytes: Long get() = files.sumOf { it.size }
 }

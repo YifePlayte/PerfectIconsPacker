@@ -20,7 +20,8 @@
 ## 约束
 
 - 只支持 HyperOS 4 的主题结构。
-- 图标资源直接来自 `pzcn/Perfect-Icons-Completion-Project`，不经过中转仓库。
+- 图标资源直接来自 `pzcn/Perfect-Icons-Completion-Project`，不经过中转仓库；
+  可选的加速链接只作为传输层前缀，直连地址始终保留为回退。
 - 图标资源仓库只读：不修改、不提交、不执行其中任何脚本。
 - 参考项目 `Perfect-Icons-APP` 中的 shell 脚本**禁止执行**，其中大量变量需要外部注入。
 

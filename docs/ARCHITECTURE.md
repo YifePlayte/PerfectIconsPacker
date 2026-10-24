@@ -36,6 +36,17 @@ AssembledTheme（文件引用，不复制图片）
 
 ## 资源获取
 
+上游仓库地址与可选的加速链接由用户配置，默认指向
+`pzcn/Perfect-Icons-Completion-Project`，应用不内置任何加速服务：
+
+- `RepoEndpoint.candidates()` 生成请求顺序：加速端点在前，直连仓库恒为最后一项。
+- 加速链接支持前缀形式（`https://proxy.example/`）与 `{url}` 模板两种写法。
+- `IconRepository` 的端点列表以 lambda 传入，每次网络调用重新读取设置；
+  改完仓库地址或加速链接后无需重启应用即可生效。
+- 每个候选端点都会重试（4 次、指数退避），任一成功即停止。
+- 快照记录 `sourceRepo`（直连仓库地址，加速端点只算传输层），用于识别
+  换了仓库但快照仍是旧来源的情况。
+
 使用双对象库，避免浅克隆无法按 SHA 取 blob 的问题：
 
 - `repo/meta.git`：`depth=1` + `filter=blob:none`，仅提交和 tree。

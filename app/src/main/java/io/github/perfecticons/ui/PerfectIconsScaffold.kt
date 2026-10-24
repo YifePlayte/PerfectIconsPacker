@@ -146,6 +146,7 @@ fun PerfectIconsScaffold(
                             1 -> ResourcesScreen(
                                 padding = padding,
                                 viewModel = resourcesViewModel,
+                                isActive = pagerState.currentPage == 1,
                             )
 
                             2 -> CustomScreen(

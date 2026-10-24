@@ -22,6 +22,7 @@ object RepoSnapshotStore {
             setProperty("commit", snapshot.commit)
             setProperty("styles", snapshot.styles.joinToString(","))
             setProperty("syncedAt", snapshot.syncedAt.toString())
+            snapshot.sourceRepo?.let { setProperty("sourceRepo", it) }
             setProperty("file.count", snapshot.files.size.toString())
             snapshot.files.forEachIndexed { index, file ->
                 setProperty("file.$index.path", file.path)
@@ -59,6 +60,7 @@ object RepoSnapshotStore {
                     ?: emptyList(),
                 syncedAt = properties.getProperty("syncedAt")?.toLongOrNull() ?: 0L,
                 files = files,
+                sourceRepo = properties.getProperty("sourceRepo"),
             )
         }.onFailure { Log.w(TAG, "cannot read snapshot", it) }.getOrNull()
     }

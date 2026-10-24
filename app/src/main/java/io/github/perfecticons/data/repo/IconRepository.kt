@@ -31,9 +31,23 @@ import kotlin.coroutines.coroutineContext
  */
 class IconRepository(
     private val root: File,
-    private val remoteUrls: List<String> = listOf(DEFAULT_REMOTE),
+    /**
+     * Resolved on every network call rather than at construction, so editing the
+     * repository URL or accelerator in settings takes effect without a restart.
+     */
+    private val remoteUrls: () -> List<String> = { listOf(DEFAULT_REMOTE) },
 ) {
-    private var activeRemote: String = remoteUrls.firstOrNull() ?: DEFAULT_REMOTE
+    private var activeRemote: String = DEFAULT_REMOTE
+
+    /** Configured endpoints, with the direct URL as the guaranteed last resort. */
+    private fun endpoints(): List<String> =
+        remoteUrls().filter { it.isNotBlank() }.ifEmpty { listOf(DEFAULT_REMOTE) }
+
+    /**
+     * Identity of the upstream repository: the direct URL, which is always the
+     * last candidate. The accelerated endpoint is transport, not identity.
+     */
+    private fun repositoryIdentity(): String = endpoints().last()
 
     private val metaDir = File(root, "meta.git")
     private val blobsDir = File(root, "blobs.git")
@@ -102,6 +116,7 @@ class IconRepository(
                 styles = styles.sorted(),
                 syncedAt = System.currentTimeMillis(),
                 files = sized,
+                sourceRepo = repositoryIdentity(),
             )
             RepoSnapshotStore.save(root, snapshot)
 
@@ -131,8 +146,7 @@ class IconRepository(
      * snapshot is current without downloading anything.
      */
     suspend fun remoteHead(): String? = withContext(Dispatchers.IO) {
-        val endpoints = remoteUrls.filter { it.isNotBlank() }.ifEmpty { listOf(DEFAULT_REMOTE) }
-        for (url in endpoints) {
+        for (url in endpoints()) {
             val head = runCatching {
                 Git.lsRemoteRepository()
                     .setRemote(url)
@@ -255,10 +269,10 @@ class IconRepository(
      * repository URL is always the last resort.
      */
     private suspend fun <T> retrying(operation: String, block: (attempt: Int, url: String) -> T): T {
-        val endpoints = remoteUrls.filter { it.isNotBlank() }.ifEmpty { listOf(DEFAULT_REMOTE) }
+        val targets = endpoints()
         var last: Throwable? = null
         for (attempt in 1..MAX_ATTEMPTS) {
-            for (url in endpoints) {
+            for (url in targets) {
                 coroutineContext.ensureActive()
                 try {
                     return block(attempt, url)

@@ -57,7 +57,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val settings = SettingsRepository(application)
     private val repository = IconRepository(
         root = RepoPaths.root(application),
-        remoteUrls = RepoEndpoint.candidates(settings.repoUrl, settings.accelerator),
+        remoteUrls = { RepoEndpoint.candidates(settings.repoUrl, settings.accelerator) },
     )
     private val customDir = RepoPaths.customRoot(application)
     private val buildsRoot = RepoPaths.buildsRoot(application)
@@ -67,6 +67,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Snapshot commit the upstream check was last run for. */
     private var checkedCommit: String? = null
+
+    /** Endpoint list the last upstream check used; a settings change re-runs it. */
+    private var checkedEndpoint: String? = null
 
     fun refresh() {
         viewModelScope.launch {
@@ -89,16 +92,23 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             // The upstream check runs at most once per snapshot commit: on first
-            // open, and again only after a sync moves the snapshot.
-            if (snapshot != null && snapshot.commit != checkedCommit) {
+            // open, and again only after a sync moves the snapshot. A changed
+            // repository or accelerator also re-runs it, since it probes a
+            // different remote.
+            if (snapshot != null && (snapshot.commit != checkedCommit || endpointKey() != checkedEndpoint)) {
                 checkUpstream(snapshot)
             }
         }
     }
 
+    /** Identifies the configured endpoints; a change invalidates the last check. */
+    private fun endpointKey(): String =
+        RepoEndpoint.candidates(settings.repoUrl, settings.accelerator).joinToString("|")
+
     /** Asks upstream for its current head and reports whether the snapshot is stale. */
     private fun checkUpstream(snapshot: RepoSnapshot) {
         checkedCommit = snapshot.commit
+        checkedEndpoint = endpointKey()
         viewModelScope.launch {
             val head = repository.remoteHead()
             _state.value = _state.value.copy(

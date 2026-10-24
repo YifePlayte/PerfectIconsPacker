@@ -17,6 +17,8 @@ import java.net.URI
  */
 object RepoEndpoint {
 
+    private val GITHUB_HOST = Regex("^(?:www\\.)?github\\.com$")
+
     fun normalizeBase(baseUrl: String): String = baseUrl.trim().trimEnd('/')
 
     fun isUsableAccelerator(value: String?): Boolean {
@@ -55,4 +57,17 @@ object RepoEndpoint {
             // Credentials in the URL would end up in prefs, git config and logs.
             uri.userInfo == null
     }.getOrDefault(false)
+
+    /**
+     * Short human-readable label for a repository URL: `owner/name` for GitHub,
+     * `host/path` elsewhere. The full URL stays available in settings.
+     */
+    fun displayName(baseUrl: String): String {
+        val direct = normalizeBase(baseUrl)
+        val withoutScheme = direct.substringAfter("://", direct)
+        val host = withoutScheme.substringBefore('/')
+        val path = withoutScheme.substringAfter('/', "").removeSuffix(".git")
+        if (path.isEmpty()) return direct
+        return if (GITHUB_HOST.matches(host)) path else "$host/$path"
+    }
 }

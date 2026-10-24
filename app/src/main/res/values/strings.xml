@@ -55,11 +55,12 @@
     <string name="resources_style_summary">同步与构建使用的图标主题</string>
     <string name="resources_style_resync">主题已变更，请重新同步资源</string>
     <string name="resources_section_repository">图标仓库</string>
-    <string name="resources_repo_value">pzcn/Perfect-Icons-Completion-Project</string>
+    <string name="resources_repo_direct">直连，未设置加速链接</string>
+    <string name="resources_repo_accelerated">加速链接：%1$s</string>
+    <string name="resources_repo_mismatch">当前快照来自其他仓库，重新同步后会替换。</string>
     <string name="resources_placeholder">从上游仓库直接拉取图标资源，尚未同步。</string>
     <string name="resources_sync">检查更新</string>
     <string name="resources_clear">清理缓存</string>
-    <string name="resources_repo_hint">直接读取上游仓库，不经过中转仓库。</string>
     <string name="resources_section_snapshot">当前快照</string>
     <string name="resources_empty">尚未同步。点击「检查更新」下载所选主题的图标资源。</string>
     <string name="resources_commit">提交：%1$s</string>

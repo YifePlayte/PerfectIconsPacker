@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -36,8 +37,15 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun ResourcesScreen(
     padding: PaddingValues,
     viewModel: ResourcesViewModel = viewModel(),
+    isActive: Boolean = true,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    // The shell keeps every tab composed, so a settings change made on the
+    // settings tab would otherwise not show here until the app restarts.
+    LaunchedEffect(isActive) {
+        if (isActive) viewModel.refreshSettings()
+    }
 
     PageScaffold(
         title = stringResource(R.string.resources_title),
@@ -62,14 +70,27 @@ fun ResourcesScreen(
         item {
             SectionCard(modifier = Modifier.animateItem(), title = stringResource(R.string.resources_section_repository)) {
                 Text(
-                    text = stringResource(R.string.resources_repo_value),
+                    text = state.repositoryName,
                     style = MiuixTheme.textStyles.body2,
                 )
                 Text(
-                    text = stringResource(R.string.resources_repo_hint),
+                    text = if (state.accelerator.isBlank()) {
+                        stringResource(R.string.resources_repo_direct)
+                    } else {
+                        stringResource(R.string.resources_repo_accelerated, state.accelerator)
+                    },
                     style = MiuixTheme.textStyles.footnote2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
+                // The snapshot on disk may predate a repository switch; syncing
+                // replaces it, so this is only a heads-up, not an error.
+                if (state.snapshotFromOtherRepo) {
+                    Text(
+                        text = stringResource(R.string.resources_repo_mismatch),
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.error,
+                    )
+                }
             }
         }
         item {

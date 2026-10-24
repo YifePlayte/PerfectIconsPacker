@@ -52,4 +52,36 @@ class RepoEndpointTest {
         val candidates = RepoEndpoint.candidates(base, "https://proxy.example/")
         assertEquals(base, candidates.last())
     }
+
+    @Test
+    fun `display name keeps owner and repo for github`() {
+        assertEquals(
+            "pzcn/Perfect-Icons-Completion-Project",
+            RepoEndpoint.displayName("https://github.com/pzcn/Perfect-Icons-Completion-Project.git"),
+        )
+        assertEquals(
+            "pzcn/Perfect-Icons-Completion-Project",
+            RepoEndpoint.displayName("https://github.com/pzcn/Perfect-Icons-Completion-Project/"),
+        )
+    }
+
+    @Test
+    fun `display name keeps the host for other remotes`() {
+        assertEquals(
+            "mirror.example/owner/repo",
+            RepoEndpoint.displayName("https://mirror.example/owner/repo.git"),
+        )
+        // A bare host has no path to shorten; show what the user configured.
+        assertEquals("https://mirror.example", RepoEndpoint.displayName("https://mirror.example"))
+    }
+
+    @Test
+    fun `accelerated endpoint is never mistaken for the repository identity`() {
+        val candidates = RepoEndpoint.candidates(base, "https://proxy.example/")
+        assertEquals(base, candidates.last())
+        assertEquals(
+            RepoEndpoint.displayName(base),
+            RepoEndpoint.displayName(candidates.last()),
+        )
+    }
 }
