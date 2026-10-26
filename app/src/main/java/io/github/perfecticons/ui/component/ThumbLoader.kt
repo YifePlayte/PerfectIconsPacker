@@ -1,6 +1,8 @@
 package io.github.perfecticons.ui.component
 
+import android.content.ComponentName
 import android.graphics.Bitmap
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
@@ -16,6 +18,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import io.github.perfecticons.domain.model.IconId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -111,6 +114,61 @@ fun rememberAppIconThumb(packageName: String, targetDp: Dp): ImageBitmap? {
     LaunchedEffect(key) {
         bitmap = ThumbLoader.drawableThumb(packageName, targetPx) {
             runCatching { context.packageManager.getApplicationIcon(packageName) }.getOrNull()
+        }
+    }
+    return bitmap?.let { remember(it) { it.asImageBitmap() } }
+}
+
+/**
+ * Icon of one launchable entry: the component's own icon when it declares one,
+ * otherwise the application icon. Aliases and activities that declare an icon
+ * render differently from the app, and the theme writes those ids separately, so
+ * the preview has to tell them apart.
+ *
+ * [packageName] and [className] are passed explicitly instead of decoding them
+ * from [id]: a `pkg.Class` id cannot be split back into its package, because the
+ * package boundary is not recoverable from the string alone.
+ *
+ * The icon is read from the component's declared resource rather than through
+ * `getActivityIcon`, which refuses to draw a component the package manager
+ * currently has disabled. Every alias an app switches its home-screen icon
+ * through is disabled until it is picked, and those are exactly the entries
+ * worth previewing here.
+ */
+@Composable
+fun rememberEntryIconThumb(
+    id: String,
+    packageName: String,
+    className: String?,
+    targetDp: Dp,
+): ImageBitmap? {
+    val context = LocalContext.current
+    val targetPx = with(LocalDensity.current) { targetDp.roundToPx() }
+    val key = remember(id, targetPx) { "e|$id|$targetPx" }
+    var bitmap by remember(key) { mutableStateOf(ThumbLoader.peek(key)) }
+    LaunchedEffect(key) {
+        bitmap = ThumbLoader.drawableThumb(key, targetPx) {
+            val manager = context.packageManager
+            val activityIcon = className?.let { name ->
+                runCatching {
+                    // MATCH_DISABLED_COMPONENTS is required: an alias is disabled
+                    // until the app flips it on, and without the flag the lookup
+                    // returns nothing for exactly the entries being previewed.
+                    val info = manager.getActivityInfo(
+                        ComponentName(packageName, name),
+                        PackageManager.MATCH_DISABLED_COMPONENTS,
+                    )
+                    when {
+                        info.icon != 0 -> manager.getResourcesForApplication(info.applicationInfo)
+                            .getDrawable(info.icon, null)
+                        // The component declares no icon of its own and inherits the
+                        // application one.
+                        else -> manager.getApplicationIcon(packageName)
+                    }
+                }.getOrNull()
+            }
+            activityIcon
+                ?: runCatching { manager.getApplicationIcon(packageName) }.getOrNull()
         }
     }
     return bitmap?.let { remember(it) { it.asImageBitmap() } }

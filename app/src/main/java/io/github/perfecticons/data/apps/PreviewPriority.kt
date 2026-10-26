@@ -23,7 +23,7 @@ object PreviewPriority {
         }
         return apps
             .sortedWith { left, right -> collator.compare(left.label, right.label) }
-            .flatMap { it.suggestedIds }
+            .flatMap { app -> app.suggestedIds.map { it.id } }
             .distinct()
     }
 

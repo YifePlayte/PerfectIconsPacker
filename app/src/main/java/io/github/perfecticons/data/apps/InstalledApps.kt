@@ -12,6 +12,13 @@ data class LaunchEntry(
     val packageName: String,
     val className: String?,
     val label: String,
+    /**
+     * Whether this entry declares its own icon, i.e. its launcher icon differs
+     * from the application icon. Apps that switch their home-screen icon do it by
+     * enabling an alias that carries a distinct icon, so these are the entries a
+     * user is most likely looking for.
+     */
+    val hasOwnIcon: Boolean = false,
 )
 
 data class InstalledApp(
@@ -21,12 +28,21 @@ data class InstalledApp(
     val isSystem: Boolean = false,
     val firstInstallTime: Long = 0L,
 ) {
-    val suggestedIds: List<String>
+    /** One selectable id plus the component it stands for. */
+    data class SuggestedId(
+        val id: String,
+        val packageName: String,
+        val className: String?,
+    )
+
+    val suggestedIds: List<SuggestedId>
         get() = buildList {
-            add(packageName)
+            add(SuggestedId(packageName, packageName, null))
             entries.forEach { entry ->
                 val resolved = IconId.resolve(entry.packageName, entry.className)
-                if (resolved != packageName && resolved !in this) add(resolved)
+                if (resolved != packageName && none { it.id == resolved }) {
+                    add(SuggestedId(resolved, entry.packageName, entry.className))
+                }
             }
         }
 
@@ -37,6 +53,12 @@ data class InstalledApp(
  * Lists launchable apps together with every activity that can appear on the home
  * screen. Activity aliases are included because launchers treat them as separate
  * entries with their own icon identifiers.
+ *
+ * Disabled components are collected too. Apps switch their launcher icon by
+ * flipping an alias between enabled and disabled (`setComponentEnabledSetting`),
+ * so a currently disabled alias is still a launcher entry: Duolingo ships 211 of
+ * them, one per seasonal or streak-saver icon, and any of them can be on the
+ * home screen after the app flips it.
  */
 class InstalledApps(private val context: Context) {
 
@@ -66,16 +88,26 @@ class InstalledApps(private val context: Context) {
                     ?.takeIf { it.isNotBlank() }
                     ?: infos.firstOrNull()?.loadLabel(manager)?.toString()
                     ?: packageName
+                val appIconRes = applicationInfo?.icon ?: 0
                 val entries = infos
                     .map { info ->
                         LaunchEntry(
                             packageName = packageName,
                             className = info.activityInfo.name,
                             label = info.loadLabel(manager)?.toString() ?: label,
+                            // An alias that names a different icon resource than
+                            // the application is one the app enables to switch the
+                            // home-screen icon; a shared or inherited resource is
+                            // just the app icon restated.
+                            hasOwnIcon = info.activityInfo.icon != 0 &&
+                                info.activityInfo.icon != appIconRes,
                         )
                     }
                     .distinctBy { it.className }
-                    .sortedBy { it.className }
+                    // Entries with their own icon first: those are the ones an
+                    // icon-switching app can actually put on the home screen.
+                    .sortedWith(compareByDescending<LaunchEntry> { it.hasOwnIcon }
+                        .thenBy { it.className })
                 InstalledApp(
                     packageName = packageName,
                     label = label,
