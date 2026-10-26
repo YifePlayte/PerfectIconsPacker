@@ -49,7 +49,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -322,7 +321,7 @@ private fun StaticRow(
                 onClear = { viewModel.clearStaticLayer(entry.id, "1.png") },
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(entry.id, style = MiuixTheme.textStyles.body2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(entry.id, style = MiuixTheme.textStyles.body2)
                 AnimatedVisibility(
                     visible = entry.ignoredFiles.isNotEmpty(),
                     enter = fadeIn() + expandVertically(),
@@ -554,7 +553,7 @@ private fun DynamicRow(
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(entry.id, style = MiuixTheme.textStyles.body2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(entry.id, style = MiuixTheme.textStyles.body2)
                 val placeholder = entry.fileCount == 0
                 val status = when {
                     placeholder -> stringResource(R.string.custom_dynamic_placeholder)
