@@ -10,6 +10,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,7 +42,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,7 +57,6 @@ import io.github.perfecticons.data.apps.InstalledApp
 import io.github.perfecticons.domain.model.IconId
 import io.github.perfecticons.ui.component.ActionButton
 import io.github.perfecticons.ui.component.BackIcon
-import io.github.perfecticons.ui.component.SectionLabel
 import io.github.perfecticons.ui.component.BlurredBar
 import io.github.perfecticons.ui.component.rememberAppIconThumb
 import io.github.perfecticons.ui.component.rememberBlurBackdrop
@@ -93,6 +95,9 @@ private enum class AppOrderType {
     Label,
     PackageName,
     FirstInstallTime,
+
+    /** Most launcher entries first; this type is inherently descending. */
+    EntryCount,
 }
 
 /**
@@ -144,25 +149,39 @@ fun StaticAddAppScreen(
                     it.packageName.contains(query, true) ||
                     (sortKeys[it.packageName] ?: "").contains(query, true)
             }
-        val comparators = mutableListOf<(InstalledApp) -> Comparable<*>?>()
-        comparators.add { app ->
-            when (orderType) {
+        // Every type except EntryCount sorts ascending; compareBy then applies
+        // `reversed` on top when the user flips the order.
+        val property: (InstalledApp, AppOrderType) -> Comparable<*> = { app, type ->
+            when (type) {
                 AppOrderType.Label -> sortKeys[app.packageName] ?: app.label.lowercase()
                 AppOrderType.PackageName -> app.packageName
                 AppOrderType.FirstInstallTime -> app.firstInstallTime
+                AppOrderType.EntryCount -> app.entries.size
             }
         }
-        AppOrderType.entries.filter { it != orderType }.forEach { fallback ->
-            comparators.add { app ->
-                when (fallback) {
-                    AppOrderType.Label -> sortKeys[app.packageName] ?: app.label.lowercase()
-                    AppOrderType.PackageName -> app.packageName
-                    AppOrderType.FirstInstallTime -> app.firstInstallTime
+        val labelKey: (InstalledApp) -> Comparable<*> = { app ->
+            sortKeys[app.packageName] ?: app.label.lowercase()
+        }
+        val comparator = if (orderType == AppOrderType.EntryCount) {
+            // Entry count is the one type that reads most usefully descending, so
+            // it is descending regardless of the flip. The tie-break stays on the
+            // app name ascending: comparing by entry count alone would leave that
+            // order to chance, and reversing it with the flip would sink the
+            // alphabetical grouping the name sort exists for.
+            compareByDescending<InstalledApp> { it.entries.size }
+                .thenBy(labelKey)
+                .thenBy { it.packageName }
+        } else {
+            val comparators = mutableListOf<(InstalledApp) -> Comparable<*>>()
+            comparators.add { app -> property(app, orderType) as Comparable<*> }
+            AppOrderType.entries.filter { it != orderType && it != AppOrderType.EntryCount }
+                .forEach { fallback ->
+                    comparators.add { app -> property(app, fallback) as Comparable<*> }
                 }
-            }
+            comparators.add(labelKey)
+            val ascending = compareBy(*comparators.toTypedArray())
+            if (orderReversed) ascending.reversed() else ascending
         }
-        var comparator = compareBy(*comparators.toTypedArray())
-        if (orderReversed) comparator = comparator.reversed()
         filtered.sortedWith(comparator).toList()
     }
 
@@ -216,7 +235,10 @@ fun StaticAddAppScreen(
                     SortDropdown(
                         orderType = orderType,
                         onOrderTypeChange = { orderTypeName = it.name },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp)
+                            .padding(bottom = 6.dp),
                     )
                 }
             }
@@ -296,7 +318,6 @@ fun StaticAddAppScreen(
                 ) {
                 item {
                     Column(modifier = Modifier.animateItem()) {
-                        SectionLabel(text = stringResource(R.string.custom_add_manual))
                         Card(
                             modifier = Modifier
                                 .padding(horizontal = 12.dp)
@@ -477,6 +498,11 @@ private fun MoreMenu(
     }
 }
 
+/**
+ * Sort selector styled as a section title, following the miuix Example's
+ * `MiuixDropdown`: the row is only as wide as its content (the bar's blank
+ * area is not a target), it shows no ripple, and it confirms with haptics.
+ */
 @Composable
 private fun SortDropdown(
     orderType: AppOrderType,
@@ -484,16 +510,26 @@ private fun SortDropdown(
     modifier: Modifier = Modifier,
 ) {
     val expanded = remember { mutableStateOf(false) }
+    val hapticFeedback = LocalHapticFeedback.current
     val labels = listOf(
         AppOrderType.Label to stringResource(R.string.app_list_sort_label),
         AppOrderType.PackageName to stringResource(R.string.app_list_sort_package),
         AppOrderType.FirstInstallTime to stringResource(R.string.app_list_sort_install),
+        AppOrderType.EntryCount to stringResource(R.string.app_list_sort_entries),
     )
     Box(modifier = modifier) {
         Row(
             modifier = Modifier
-                .clickable { expanded.value = true }
-                .heightIn(min = 48.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        expanded.value = !expanded.value
+                        if (expanded.value) {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        }
+                    },
+                )
                 .padding(horizontal = 28.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -504,11 +540,11 @@ private fun SortDropdown(
                 fontWeight = FontWeight.Bold,
                 color = MiuixTheme.colorScheme.onBackgroundVariant,
             )
-            Icon(
+            Image(
+                modifier = Modifier.size(width = 10.dp, height = 16.dp),
                 imageVector = MiuixIcons.Basic.ArrowUpDown,
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                modifier = Modifier.size(16.dp),
+                colorFilter = ColorFilter.tint(MiuixTheme.colorScheme.onSurfaceVariantActions),
+                contentDescription = stringResource(R.string.app_list_sort_toggle),
             )
         }
         WindowListPopup(
@@ -525,6 +561,7 @@ private fun SortDropdown(
                         isSelected = type == orderType,
                         index = index,
                         onSelectedIndexChange = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
                             onOrderTypeChange(type)
                             expanded.value = false
                         },

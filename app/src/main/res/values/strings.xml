@@ -125,7 +125,6 @@
     <string name="custom_add_choose_id">选择写入主题的应用标识</string>
     <string name="custom_add_manual_id">手动输入应用标识</string>
     <string name="custom_add_manual_add">添加</string>
-    <string name="custom_add_manual">手动输入标识</string>
     <string name="custom_id_package">包名</string>
     <string name="custom_id_class">类名</string>
     <string name="custom_id_package_class">包名#类名</string>
@@ -135,6 +134,7 @@
     <string name="app_list_sort_label">按名称排序</string>
     <string name="app_list_sort_package">按包名排序</string>
     <string name="app_list_sort_install">按安装时间排序</string>
+    <string name="app_list_sort_entries">按桌面入口数量排序</string>
     <string name="app_list_reverse">反转排序</string>
     <string name="app_list_show_system">显示系统应用</string>
     <string name="app_list_loading">正在加载应用…</string>
@@ -142,6 +142,7 @@
     <string name="app_list_empty">没有匹配的应用</string>
     <string name="app_list_entries">%1$d 个桌面入口</string>
     <string name="app_list_back_to_top">回到顶部</string>
+    <string name="app_list_sort_toggle">切换排序方式</string>
 
     <string name="settings_title">设置</string>
     <string name="settings_section_appearance">外观</string>

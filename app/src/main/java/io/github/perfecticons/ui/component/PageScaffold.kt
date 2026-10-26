@@ -86,10 +86,6 @@ fun Modifier.pageScrollModifiers(scrollBehavior: ScrollBehavior): Modifier = thi
     .nestedScroll(scrollBehavior.nestedScrollConnection)
     .fillMaxSize()
 
-/**
- * Content margins for a page: below the top bar, above the navigation bar, and
- * horizontally centered with a 800.dp cap on wide screens (ghostlock pattern).
- */
 /** Horizontal margin every list applies to its items. */
 @Composable
 fun pageHorizontalMargin(): Dp {
@@ -99,6 +95,11 @@ fun pageHorizontalMargin(): Dp {
     return ((windowWidth - 800.dp) / 2).coerceAtLeast(12.dp)
 }
 
+/**
+ * Content margins for a page: below the top bar, above whichever bottom bar is
+ * taller (the page's own or the shell's navigation bar), and horizontally
+ * centered with a 800.dp cap on wide screens (ghostlock pattern).
+ */
 @Composable
 fun pageContentPadding(
     innerPadding: PaddingValues,
@@ -106,10 +107,18 @@ fun pageContentPadding(
     extraTop: Dp = 8.dp,
 ): PaddingValues {
     val horizontal = pageHorizontalMargin()
+    // A page that owns a bottomBar (e.g. the pinned confirm button) draws it over
+    // its content, so the list has to clear the bar and not just the shell's
+    // navigation bar. Whichever is taller wins; pages without a bar keep the
+    // shell padding.
+    val bottom = maxOf(
+        innerPadding.calculateBottomPadding(),
+        outerPadding.calculateBottomPadding(),
+    )
     return PaddingValues(
         start = horizontal,
         end = horizontal,
         top = innerPadding.calculateTopPadding() + extraTop,
-        bottom = outerPadding.calculateBottomPadding() + 12.dp,
+        bottom = bottom + 12.dp,
     )
 }
