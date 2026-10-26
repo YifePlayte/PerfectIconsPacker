@@ -112,7 +112,7 @@ themes/common/layer_animating_icons/**
   - Magisk：`magisk --install-module <zip>`
   - KernelSU：`ksud module install <zip>`
 - 两种命令安装的是同一个文件，模块内容不做任何分支。
-- KernelSU 依赖 metamodule（如 `meta-overlayfs`、`NoMount`）提供 `/system` 挂载；
+- KernelSU 依赖 metamodule 提供 `/system` 挂载；
   检测不到时提示用户，而不是生成另一套模块。
 - 仅操作应用生成的 zip 与已知模块目录，不执行用户输入拼接的 shell。
 - 失败时返回退出码与 stderr，不自动重启设备。

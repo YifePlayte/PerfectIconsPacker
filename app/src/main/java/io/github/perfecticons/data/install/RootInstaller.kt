@@ -25,7 +25,7 @@ data class RootStatus(
 
     /**
      * KernelSU delegates `/system` mounting to a metamodule. Any active
-     * metamodule that implements mounting counts, not just meta-overlayfs.
+     * metamodule that implements mounting counts.
      */
     val hasMountProvider: Boolean?
         get() = when (kind) {
@@ -123,8 +123,8 @@ class RootInstaller {
         val version = lines.firstOrNull { it.firstOrNull()?.isDigit() == true }
 
         // KernelSU delegates mounting to a metamodule. Read its module.prop
-        // instead of hardcoding meta-overlayfs, because alternatives such as
-        // NoMount are equally valid.
+        // instead of hardcoding a specific implementation, because any
+        // metamodule that implements mounting is equally valid.
         val metamodule = if (kind == RootKind.KernelSu) {
             runCatching {
                 Shell.cmd(

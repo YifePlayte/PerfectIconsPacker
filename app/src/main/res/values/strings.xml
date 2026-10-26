@@ -25,7 +25,7 @@
     <string name="home_root_active">当前方案：%1$s %2$s</string>
     <string name="home_root_other">其它兼容方案</string>
     <string name="home_root_none">未检测到</string>
-    <string name="home_root_ksu_overlay_missing">KernelSU 需要启用一个提供挂载能力的 metamodule（如 NoMount、meta-overlayfs），system 目录才会生效。</string>
+    <string name="home_root_ksu_overlay_missing">KernelSU 需要启用一个提供挂载能力的 metamodule，system 目录才会生效。</string>
     <string name="home_root_refresh">重新检测</string>
     <string name="home_status_ready">图标资源已就绪</string>
     <string name="home_status_latest_detail">已是最新 · 提交 %1$s</string>

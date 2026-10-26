@@ -57,7 +57,7 @@ transform_config.xml
 - KernelSU 通过 `ksud module install` 安装，忽略 `META-INF`，同样 source `customize.sh`。
 - `customize.sh` 不设置 `SKIPUNZIP`，让两套安装器都执行默认完整解压；脚本内不做方案分支，不使用方案专属路径或命令。
 - 应用负责检测当前 root 方案并调用对应安装命令，模块文件本身完全相同。
-- KernelSU 若未启用提供挂载能力的 metamodule（如 `meta-overlayfs`），`system/` 不会被挂载；应用需提示该前置条件。
+- KernelSU 若未启用提供挂载能力的 metamodule，`system/` 不会被挂载；应用需提示该前置条件。
 
 ## 与旧结构的差异
 
