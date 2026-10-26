@@ -67,6 +67,15 @@ private fun NavBackStack.popToMain() {
     while (size > 1) removeAt(lastIndex)
 }
 
+/**
+ * Distinguishes back-stack entries that would otherwise share a route value, so
+ * NavDisplay's per-entry content key stays unique. Strictly increasing, so two
+ * pushes in the same frame still differ.
+ */
+private val routeToken = java.util.concurrent.atomic.AtomicLong()
+
+private fun nextToken(): Long = routeToken.incrementAndGet()
+
 @Composable
 fun PerfectIconsScaffold(
     themeMode: ThemeMode,
@@ -152,8 +161,16 @@ fun PerfectIconsScaffold(
                             2 -> CustomScreen(
                                 padding = padding,
                                 viewModel = customizationViewModel,
-                                onAddStatic = { backStack.add(Route.CustomStaticAdd(dynamic = false)) },
-                                onAddDynamic = { backStack.add(Route.CustomStaticAdd(dynamic = true)) },
+                                onAddStatic = {
+                                    backStack.add(
+                                        Route.CustomStaticAdd(dynamic = false, token = nextToken()),
+                                    )
+                                },
+                                onAddDynamic = {
+                                    backStack.add(
+                                        Route.CustomStaticAdd(dynamic = true, token = nextToken()),
+                                    )
+                                },
                             )
 
                             else -> SettingsScreen(
@@ -174,7 +191,13 @@ fun PerfectIconsScaffold(
                         viewModel = customizationViewModel,
                         dynamic = route.dynamic,
                         onOpenApp = { packageName ->
-                            backStack.add(Route.CustomStaticPick(packageName, route.dynamic))
+                            backStack.add(
+                                Route.CustomStaticPick(
+                                    packageName = packageName,
+                                    dynamic = route.dynamic,
+                                    token = nextToken(),
+                                ),
+                            )
                         },
                         onCreate = { ids ->
                             customizationViewModel.createEntries(ids, route.dynamic)
