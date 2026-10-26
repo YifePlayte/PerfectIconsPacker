@@ -77,6 +77,8 @@ themes/common/layer_animating_icons/**
 - 内层 zip：`icons`、`dynamicicons`。
 - PNG 与内层 zip 使用 STORED，XML/文本使用 DEFLATE。
 - 使用临时文件 + 原子重命名，失败不留下半个产物。
+- 产物写入 `files/builds/output/`，构建成功后只保留最新一个，旧产物随即删除；
+  构建失败时不动上一个可用产物。
 - 所有 zip 写入路径统一校验，禁止 `..`、绝对路径、NUL。
 
 ## 自定义暴露

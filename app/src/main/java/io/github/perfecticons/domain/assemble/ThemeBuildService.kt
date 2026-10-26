@@ -142,6 +142,13 @@ class ThemeBuildService(
                 )
             }
 
+            // Only the newest artifact is kept: starting the next build clears
+            // the in-memory result, so older files are unreachable and would
+            // otherwise grow the private data dir without bound.
+            outputDir.listFiles().orEmpty()
+                .filter { it.isFile && it.name != output.name }
+                .forEach { it.delete() }
+
             log.step("校验产物")
             val elapsed = System.currentTimeMillis() - started
             log.info("输出文件：${output.name}")
