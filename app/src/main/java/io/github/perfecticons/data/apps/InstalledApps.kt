@@ -52,18 +52,30 @@ class InstalledApps(private val context: Context) {
             .filter { it.activityInfo != null && it.activityInfo.packageName != context.packageName }
             .groupBy { it.activityInfo.packageName }
             .map { (packageName, infos) ->
-                val label = infos.firstOrNull()?.loadLabel(manager)?.toString() ?: packageName
+                val applicationInfo = runCatching {
+                    manager.getApplicationInfo(packageName, 0)
+                }.getOrNull()
+                // ResolveInfo.loadLabel() prefers the entry's own android:label, so
+                // one leftover activity can rename the whole app: mijia ships
+                // BlockCanary's DisplayActivity with a launcher filter and its own
+                // "Blocks" label, which then wins over the <application> label.
+                // Read the application label instead; well-behaved entries leave
+                // android:label unset and resolve to it anyway.
+                val label = applicationInfo
+                    ?.let { manager.getApplicationLabel(it).toString() }
+                    ?.takeIf { it.isNotBlank() }
+                    ?: infos.firstOrNull()?.loadLabel(manager)?.toString()
+                    ?: packageName
                 val entries = infos
                     .map { info ->
                         LaunchEntry(
                             packageName = packageName,
                             className = info.activityInfo.name,
-                            label = info.loadLabel(manager)?.toString() ?: packageName,
+                            label = info.loadLabel(manager)?.toString() ?: label,
                         )
                     }
                     .distinctBy { it.className }
                     .sortedBy { it.className }
-                val applicationInfo = infos.firstOrNull()?.activityInfo?.applicationInfo
                 InstalledApp(
                     packageName = packageName,
                     label = label,
