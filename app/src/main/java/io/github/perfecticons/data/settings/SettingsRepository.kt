@@ -84,7 +84,7 @@ class SettingsRepository(context: Context) {
         const val PREFS_NAME = "settings"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_ICON_STYLES = "icon_styles"
-        val DEFAULT_ICON_STYLES = setOf("Hyper")
+        val DEFAULT_ICON_STYLES = setOf("HyperOS4")
         const val KEY_AUTHOR = "author"
         const val KEY_ACCELERATOR = "accelerator"
         const val KEY_REPO_URL = "repo_url"

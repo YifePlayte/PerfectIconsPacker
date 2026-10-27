@@ -71,6 +71,9 @@ themes/<style>/layer_animating_icons/**   动态，保留全部层
 themes/common/layer_animating_icons/**
 ```
 
+默认主题为 `HyperOS4`（`SettingsRepository.DEFAULT_ICON_STYLES`）；资源页选择的主题
+会持久化，切换后需重新同步。
+
 ## 打包
 
 - 图片不做重编码。

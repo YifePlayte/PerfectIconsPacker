@@ -147,6 +147,6 @@ class ResourcesViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     companion object {
-        val DEFAULT_STYLES = setOf("Hyper")
+        val DEFAULT_STYLES = SettingsRepository.DEFAULT_ICON_STYLES
     }
 }
