@@ -6,8 +6,10 @@ import java.io.File
 /**
  * Produces an MTZ theme.
  *
- * Unlike the module, MTZ keeps the animated icons inside the single `icons`
- * archive. Advanced addons live under `addons/` and keep their relative paths.
+ * Unlike the module, MTZ keeps everything inside the single `icons` archive:
+ * layered directories, animated layers and flat icons tiled as
+ * `res/drawable-xxhdpi/<id>.png`. Advanced addons live under `addons/` and keep
+ * their relative paths.
  */
 class MtzBuilder(
     private val theme: AssembledTheme,
@@ -26,7 +28,8 @@ class MtzBuilder(
 
     fun build(output: File, info: MtzInfo): File {
         workDir.mkdirs()
-        val archives = IconArchives(theme, workDir, onProgress).build(includeDynamicIcons = true)
+        val archives = IconArchives(theme, workDir, onProgress)
+            .build(includeDynamicIcons = true, includeFlatIcons = true)
         val icons = archives.icons
 
         output.parentFile?.mkdirs()
@@ -36,10 +39,6 @@ class MtzBuilder(
         ThemeZipWriter(temp.outputStream()).use { writer ->
             writer.addBytes("description.xml", info.toDescriptionXml().toByteArray(), deflated = true)
             writer.addFile("icons", icons)
-
-            theme.flatIcons.forEach { (id, source) ->
-                writer.addFile("miui_mod_icons/$id.png", File(source))
-            }
 
             // `com.miui.home` must exist as an empty zip for the theme to be
             // recognized as a home-screen theme; a same-name addon replaces it.

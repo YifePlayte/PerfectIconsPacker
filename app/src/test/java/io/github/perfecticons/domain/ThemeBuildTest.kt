@@ -132,6 +132,47 @@ class ThemeBuildTest {
     }
 
     @Test
+    fun `mtz tiles flat icons inside icons instead of a miui_mod_icons directory`() {
+        val (snapshot, custom) = fixture()
+        val theme = ThemeAssembler(snapshot, custom, mask).assemble(setOf("Hyper"))
+        val work = temp.newFolder("build")
+        val output = MtzBuilder(theme, work, ::fakeArtwork).build(
+            File(work, "theme.mtz"),
+            MtzBuilder.MtzInfo("title", "desc", "author", "1"),
+        )
+
+        ZipFile(output).use { zip ->
+            val names = zip.entries().toList().map { it.name }
+            assertFalse(names.any { it.startsWith("miui_mod_icons/") })
+
+            val icons = unzip(zip, "icons")
+            assertTrue(icons.contains("res/drawable-xxhdpi/com.flat.png"))
+            // Tiled next to the layered directory of the same id, not inside it.
+            assertTrue(icons.contains("res/drawable-xxhdpi/com.example/0.png"))
+            assertFalse(icons.any { it.startsWith("res/drawable-xxhdpi/com.flat/") })
+        }
+    }
+
+    @Test
+    fun `module keeps flat icons in their own miui_mod_icons directory`() {
+        val (snapshot, custom) = fixture()
+        val theme = ThemeAssembler(snapshot, custom, mask).assemble(setOf("Hyper"))
+        val work = temp.newFolder("build")
+        val output = ModuleBuilder(theme, work).build(
+            File(work, "module.zip"),
+            ModuleBuilder.ModuleInfo("id", "name", "1", 1, "author", "desc", "Hyper"),
+        )
+
+        ZipFile(output).use { zip ->
+            val names = zip.entries().toList().map { it.name }
+            assertTrue(names.contains("theme_staging/theme/miui_mod_icons/com.flat.png"))
+            // The module keeps flat icons out of the `icons` archive.
+            val icons = unzip(zip, "theme_staging/theme/default/icons")
+            assertFalse(icons.any { it.endsWith("com.flat.png") })
+        }
+    }
+
+    @Test
     fun `advanced addons keep their name and relative path`() {
         val (snapshot, custom) = fixture()
         File(custom, "addons/com.android.systemui").apply {

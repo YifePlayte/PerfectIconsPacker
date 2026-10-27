@@ -42,13 +42,16 @@ files/custom/
 
 ### 与单张图标的关系
 
-桌面的解析顺序是**动态分层 > 静态分层 > 单张**，因此同一个 `<id>` 同时存在
-`icons/res/drawable-xxhdpi/<id>/` 与 `miui_mod_icons/<id>.png` 并不冲突，系统会
-自然选中优先级更高的那份。
+桌面的解析顺序是**动态分层 > 静态分层 > 单张**，因此同一个 `<id>` 同时携带分层与
+单张并不冲突，系统会自然选中优先级更高的那份。
 
 - 自定义分层只是把该 id 的静态分层换掉，**不会删除同名的上游单张**。
 - 删掉自定义条目后，上层的静态分层消失，单张重新生效。
 - 这正是禁用与自定义的区别：禁用删除该 id 的全部静态形态，自定义只覆盖其中一层。
+
+单张在两份产物里的位置不同：模块放在 `system/media/theme/miui_mod_icons/<id>.png`，
+MTZ 放进 `icons` 归档内、与分层目录同级平铺为
+`res/drawable-xxhdpi/<id>.png`。
 
 ### 批量导入（icons 格式）
 
@@ -101,7 +104,7 @@ files/custom/
 
 - `disabled/static/<id>` 与 `disabled/dynamic/<id>` 相互独立。
 - 效果是删除默认携带内容：
-  - 静态：分层目录 + 同名单张 `miui_mod_icons/<id>.png`
+  - 静态：分层目录 + 同名单张（模块为 `miui_mod_icons/<id>.png`，MTZ 为 `icons` 内的 `res/drawable-xxhdpi/<id>.png`）
   - 动态：`layer_animating_icons/<id>`
 - 应用顺序：合并默认 → 静态禁用 → 动态禁用 → 自定义静态 → 自定义动态 → 遮罩 → 附加。
 - 无效标记可一键清理。

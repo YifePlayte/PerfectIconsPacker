@@ -33,9 +33,9 @@ layer_animating_icons/<id>/...
 
 ```text
 description.xml
-icons                          静态 + 动态 + transform_config
-miui_mod_icons/<id>.png
+icons                          静态分层 + 动态 + transform_config + 单张
 addons/<组件相对路径>           高级附加，保留子目录
+com.miui.home                  空 zip（附加可替换）
 preview/preview_icons_4x3_0.jpg  可选，默认生成
 wallpaper/default_wallpaper.png  可选，默认不生成
 ```
@@ -44,9 +44,13 @@ wallpaper/default_wallpaper.png  可选，默认不生成
 
 ```text
 res/drawable-xxhdpi/<id>/{0,1}.png
+res/drawable-xxhdpi/<id>.png      单张，平铺在分层目录旁
 layer_animating_icons/<id>/...    动态，层数不限
 transform_config.xml
 ```
+
+MTZ 不带 `miui_mod_icons/`：主题管理器从 `icons` 里读单张，与模块的
+`system/media/theme/miui_mod_icons/` 目录形态不同。
 
 ## 模块包的通用性
 
@@ -65,7 +69,7 @@ transform_config.xml
 |---|---|---|
 | 动画图标 | 在 `icons` 内 | 拆分到 `dynamicicons` |
 | 静态图标 | `icons` 内 `res/` | 不变 |
-| 单张图标 | `miui_mod_icons/` | 不变 |
+| 单张图标 | `icons` 外 `miui_mod_icons/` | 不变（模块专用） |
 | MTZ | 单个 `icons` | 不变 |
 
 ## transform_config.xml
@@ -86,8 +90,9 @@ transform_config.xml
 桌面的解析优先级是**动态分层 > 静态分层 > 单张**，三条链各自独立：
 
 - 分层与单张不互斥，同一个 id 可以同时携带两者，系统取优先级最高的那份。
-- 静态链只覆盖分层目录，不触碰 `miui_mod_icons/<id>.png`。
+- 静态链只覆盖分层目录，不触碰单张。
 - 只有禁用会同时移除该 id 的分层与单张。
+- 单张的位置随产物不同：模块在 `miui_mod_icons/<id>.png`，MTZ 在 `icons` 内平铺为 `res/drawable-xxhdpi/<id>.png`。
 
 禁用先于自定义生效，因此自定义可以重新提供被禁用的图标。
 
