@@ -47,14 +47,18 @@ class ThemeAssemblerEdgeCaseTest {
     }
 
     @Test
-    fun `custom layered entry drops the conflicting flat icon`() {
+    fun `custom layered entry keeps the flat icon of the same id`() {
         val snapshot = temp.newFolder("snapshot")
         val custom = setup(snapshot)
         png(File(snapshot, "themes/Hyper/icons/com.base.png"))
         png(File(custom, "static/com.base/1.png"))
 
         val theme = ThemeAssembler(snapshot, custom, mask).assemble(setOf("Hyper"))
-        assertFalse(theme.flatIcons.containsKey("com.base"))
+        // The launcher resolves layered icons first, so both forms may ship.
+        assertEquals(
+            File(snapshot, "themes/Hyper/icons/com.base.png").path,
+            theme.flatIcons["com.base"],
+        )
         assertEquals(1, theme.stats.overriddenStatic)
     }
 

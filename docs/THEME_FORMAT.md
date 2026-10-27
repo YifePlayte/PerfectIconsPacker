@@ -83,6 +83,12 @@ transform_config.xml
   < 自定义 dynamic/<id>
 ```
 
+桌面的解析优先级是**动态分层 > 静态分层 > 单张**，三条链各自独立：
+
+- 分层与单张不互斥，同一个 id 可以同时携带两者，系统取优先级最高的那份。
+- 静态链只覆盖分层目录，不触碰 `miui_mod_icons/<id>.png`。
+- 只有禁用会同时移除该 id 的分层与单张。
+
 禁用先于自定义生效，因此自定义可以重新提供被禁用的图标。
 
 保留路径（高级附加不得覆盖）：`icons`、`dynamicicons`、`transform_config.xml`、`description.xml`、`module.prop`、`META-INF/`。

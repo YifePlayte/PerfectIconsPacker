@@ -39,7 +39,7 @@ class ThemeAssembler(
         val upstreamStatic = staticIcons.size
         val upstreamDynamic = dynamicIcons.size
         val (disabledStatic, disabledDynamic) = applyDisabled(staticIcons, flatIcons, dynamicIcons)
-        val overriddenStatic = collectCustomStatic(staticIcons, flatIcons)
+        val overriddenStatic = collectCustomStatic(staticIcons)
         val overriddenDynamic = collectCustomDynamic(dynamicIcons)
         val transform = customTransform()
         collectAddons(addons, addonDirs)
@@ -166,7 +166,6 @@ class ThemeAssembler(
     /** Returns the number of custom static entry folders laid over the theme. */
     private fun collectCustomStatic(
         staticIcons: MutableMap<String, StaticIcon>,
-        flatIcons: MutableMap<String, String>,
     ): Int {
         val dir = File(customDir, "static")
         if (!dir.isDirectory) return 0
@@ -179,9 +178,10 @@ class ThemeAssembler(
                 // A custom entry may override just one layer; the missing
                 // layer falls back to the upstream icon it overrides.
                 val existing = staticIcons[iconDir.name]
-                // A layered custom entry wins over a flat icon of the same id;
-                // keeping both would ship conflicting icons for one app.
-                flatIcons.remove(iconDir.name)
+                // The launcher resolves layered icons before flat ones, so a
+                // layered custom entry and a flat icon of the same id coexist
+                // legally. The flat entry must survive: once the layered
+                // override is removed the flat icon becomes visible again.
                 staticIcons[iconDir.name] = StaticIcon(
                     id = iconDir.name,
                     background = custom.background ?: existing?.background,
