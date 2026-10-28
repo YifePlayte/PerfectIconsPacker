@@ -371,6 +371,7 @@ private fun InstallStatusBody(
         val label = when (status.kind) {
             RootKind.Magisk -> "Magisk"
             RootKind.KernelSu -> "KernelSU"
+            RootKind.Apatch -> "APatch"
             RootKind.Other -> stringResource(R.string.home_root_other)
             RootKind.None -> stringResource(R.string.home_root_none)
         }
@@ -382,7 +383,7 @@ private fun InstallStatusBody(
             ).trim(),
             style = MiuixTheme.textStyles.body2,
         )
-        if (status.kind == RootKind.KernelSu && status.hasMountProvider == false) {
+        if (status.hasMountProvider == false) {
             Text(
                 text = stringResource(R.string.home_root_ksu_overlay_missing),
                 style = MiuixTheme.textStyles.footnote2,

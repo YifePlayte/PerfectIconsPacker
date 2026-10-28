@@ -10,6 +10,7 @@ import java.io.File
 enum class RootKind {
     Magisk,
     KernelSu,
+    Apatch,
     Other,
     None,
 }
@@ -29,7 +30,7 @@ data class RootStatus(
      */
     val hasMountProvider: Boolean?
         get() = when (kind) {
-            RootKind.KernelSu -> mountMetamodule != null
+            RootKind.KernelSu, RootKind.Apatch -> mountMetamodule != null
             RootKind.Magisk -> null
             RootKind.Other, RootKind.None -> null
         }
@@ -57,21 +58,27 @@ class RootInstaller {
     }
 
     /**
-     * 重新检测时清掉 libsu 的进程级缓存，否则运行期间新授予的 root 永远不会生效。
+     * 重新检测前清掉 libsu 的两层陈旧状态，否则运行期间新授予的 root 不会生效。
      *
-     * libsu 缓存两层状态：
-     * - `Shell.isAppGrantedRoot()` 把结论记在私有的 `Utils.currentRootState` 里
-     *   （-1 未知、0 无 su、1 有 su 未验证、2 已确认）。首次判定后不再重算。
-     * - 建好的 shell 会作为主 shell 缓存；一次失败的非 root shell 会被后续所有
-     *   命令复用，于是 `Shell.cmd("id")` 永远不是 root。
+     * 第一层是结论缓存：`Utils.currentRootState`（-1 未知 / 0 无 su / 1 有 su 未验证
+     * / 2 已确认），首次判定后不再重算。
      *
-     * KernelSU 只有对已授权的应用才让 `su` 可见，所以未授权时这里判定为“无 su”
-     * 并一直缓存；授予之后必须重置才能重新读取。重置不做任何前提判断，即使当前
-     * 是 root shell 也一并丢弃，保证重新检测拿到的永远是现场状态。
+     * 第二层是主 shell 本身。`BuilderImpl.start()` 在拿不到 root 时会退化成
+     * `exec("sh")`，而这个非 root shell 会被 `MainShell` 一直接着用（`getCached()`
+     * 只看 status 是否有效），用户后来授权也不会换掉它，于是 `id` 永远不是 root。
+     * 因此仅在**当前主 shell 不是 root** 时才关闭它，逼下一次访问重建；
+     * 已经是 root 的 shell 不动，避免无谓地打断正常工作的会话。
      */
     private fun dropCachedVerdict() {
-        runCatching { Shell.getCachedShell()?.close() }
-            .onFailure { Log.w(TAG, "关闭缓存的 shell 失败", it) }
+        runCatching { Shell.getCachedShell() }
+            .getOrNull()
+            ?.takeIf { !it.isRoot }
+            ?.let { stale ->
+                Log.i(TAG, "丢弃非 root 主 shell，下次访问重建")
+                runCatching { stale.close() }
+                    .onFailure { Log.w(TAG, "关闭缓存的 shell 失败", it) }
+            }
+
         runCatching {
             val field = Class.forName(LIBSU_UTILS_CLASS)
                 .getDeclaredField(LIBSU_ROOT_STATE_FIELD)
@@ -81,63 +88,58 @@ class RootInstaller {
     }
 
     /**
-     * @param recheck 用户主动“重新检测”时为 true：无条件丢弃 libsu 缓存后重新探测，
-     *   不复用任何旧结论。自动检测沿用现有缓存，避免每次进入首页都重建 root shell。
+     * @param recheck 用户主动“重新检测”时为 true：先清掉 libsu 的陈旧状态，
+     *   再用一次现场命令重新判定。自动检测沿用现有 shell，避免每次进入首页
+     *   都重建会话、反复触发授权弹窗。
      */
     suspend fun detect(recheck: Boolean = false): RootStatus = withContext(Dispatchers.IO) {
         if (recheck) dropCachedVerdict()
 
-        // libsu returns three distinct states, not a boolean:
-        //   true  -> uid 0, or the app was already granted
-        //   false -> no su binary on PATH, root is impossible
-        //   null  -> su exists but the grant is unverified
-        // Treating null as "denied" is wrong.
-        val grantedFlag = runCatching { Shell.isAppGrantedRoot() }.getOrNull()
-        val granted = when {
-            // 重新检测不复用任何旧结论，直接执行 su 拿现场结果。
-            recheck -> verifyRootByExecution()
-            grantedFlag == true -> true
-            grantedFlag == null -> verifyRootByExecution()
-            else -> false
-        }
-        Log.i(TAG, "isAppGrantedRoot=$grantedFlag rootUsable=$granted")
-        if (!granted) return@withContext RootStatus(false, RootKind.None, null)
-
+        // 一次 shell 往返同时拿到 uid、方案品牌与元模块，避免多次 exec() 逐个
+        // 争用 MainShell 的创建锁；任何一次卡住都会让 detect() 永不返回。
         val probe = runCatching {
             Shell.cmd(
-                "command -v magisk >/dev/null 2>&1 && echo magisk",
-                "command -v ksud >/dev/null 2>&1 && echo ksud",
-                "test -d /data/adb/ksu && echo ksu-dir",
-                "test -d /data/adb/magisk && echo magisk-dir",
-                "magisk -V 2>/dev/null | head -n1",
-                "ksud -V 2>/dev/null | head -n1",
+                "id",
+                "echo META:\$(readlink /data/adb/metamodule 2>/dev/null | sed 's#.*/##')",
+                "su -v 2>/dev/null | head -n1",
             ).exec()
         }.getOrNull()
 
         val lines = probe?.out.orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
+        // 是否真的拿到 root 只看 id 的输出；libsu 的三态缓存在重新检测时不可信。
+        val isRoot = lines.any { it.contains("uid=0") }
+        Log.i(TAG, "probe recheck=$recheck root=$isRoot out=$lines")
+        if (!isRoot) return@withContext RootStatus(false, RootKind.None, null)
+
+        // 品牌后缀是“谁在提供 su”的唯一可靠证据：换装 root 方案后
+        // /data/adb/magisk 之类的目录仍会残留，目录探测会误判成旧方案。
+        val banner = lines.firstOrNull { line ->
+            line.endsWith(":MAGISKSU", true) ||
+                line.endsWith(":KernelSU", true) ||
+                line.endsWith(":APatch", true)
+        }.orEmpty()
+
         val kind = when {
-            lines.any { it == "magisk" || it == "magisk-dir" } -> RootKind.Magisk
-            lines.any { it == "ksud" || it == "ksu-dir" } -> RootKind.KernelSu
+            banner.endsWith(":MAGISKSU", true) -> RootKind.Magisk
+            banner.endsWith(":KernelSU", true) -> RootKind.KernelSu
+            banner.endsWith(":APatch", true) -> RootKind.Apatch
             else -> RootKind.Other
         }
-        val version = lines.firstOrNull { it.firstOrNull()?.isDigit() == true }
+        // 横幅是 <version>:<brand>，品牌之前的部分才是版本号。
+        val version = banner.substringBeforeLast(':', "").trim()
+            .takeIf { it.isNotEmpty() && it.firstOrNull()?.isDigit() == true }
+        Log.i(TAG, "banner=$banner kind=$kind version=$version")
 
-        // KernelSU delegates mounting to a metamodule. Read its module.prop
-        // instead of hardcoding a specific implementation, because any
-        // metamodule that implements mounting is equally valid.
-        val metamodule = if (kind == RootKind.KernelSu) {
-            runCatching {
-                Shell.cmd(
-                    "grep -m1 '^id=' /data/adb/metamodule/module.prop 2>/dev/null | cut -d= -f2-",
-                ).exec()
-            }.getOrNull()
-                ?.out
-                ?.firstOrNull()
-                ?.trim()
+        // KernelSU 与 APatch 都把 /system 挂载委托给元模块：
+        // 没有元模块时，模块里的 system/ 目录不会生效。
+        val metamodule = if (kind == RootKind.KernelSu || kind == RootKind.Apatch) {
+            lines.firstOrNull { it.startsWith("META:") }
+                ?.removePrefix("META:")
                 ?.takeIf { it.isNotEmpty() }
         } else {
             null
         }
+        Log.i(TAG, "metamodule=$metamodule")
 
         RootStatus(
             granted = true,
@@ -146,15 +148,6 @@ class RootInstaller {
             mountMetamodule = metamodule,
         )
     }
-
-    /**
-     * Confirms root by actually running a command. Only called when libsu reports
-     * `null`, because on a device without root this would raise a pointless
-     * superuser prompt.
-     */
-    private fun verifyRootByExecution(): Boolean = runCatching {
-        Shell.cmd("id").exec().out.any { it.contains("uid=0") }
-    }.getOrDefault(false)
 
     /**
      * Installs and reports output line by line.
@@ -179,6 +172,8 @@ class RootInstaller {
         val command = when (status.kind) {
             RootKind.Magisk -> "magisk --install-module '$path'"
             RootKind.KernelSu -> "ksud module install '$path'"
+            // APatch 的守护进程在 /data/adb/apd，不在 PATH 上，须写绝对路径。
+            RootKind.Apatch -> "/data/adb/apd module install '$path'"
             RootKind.Other, RootKind.None ->
                 return@withContext InstallResult.Failure("未检测到受支持的 root 方案")
         }
