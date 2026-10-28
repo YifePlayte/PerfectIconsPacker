@@ -152,7 +152,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val request = BuildRequest(
                 target = target,
                 styles = styles,
-                outputName = defaultOutputName(target),
+                outputName = defaultOutputName(styles),
                 author = settings.author,
                 versionName = buildVersion(),
                 previewPriority = previewPriority,
@@ -253,19 +253,29 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Output names follow the old packer: `<theme><kind>-MMddHHmm` in the
-     * device timezone. The timestamp keeps saved files collision-free (system
-     * pickers append ugly " (1)" suffixes after the extension on duplicates).
+     * 产物文件名：`完美图标补全计划-<主题名>-yyyyMMdd-HHmmss`，用设备时区。
+     * 主题选择是单选，这里只取唯一值；秒级时间戳让同一分钟内的多次构建
+     * 也不会重名（系统选择器会在重名时追加难看的 " (1)"）。
      */
-    private fun defaultOutputName(target: BuildTarget): String {
-        val stamp = SimpleDateFormat("MMddHHmm", Locale.US).format(Date())
-        val base = getApplication<Application>().getString(
-            if (target == BuildTarget.Module) R.string.output_name_module else R.string.output_name_mtz,
+    private fun defaultOutputName(styles: Set<String>): String {
+        val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        val theme = styles.firstOrNull().orEmpty().trim()
+            .replace(Regex("[\\\\/:*?\"<>|\\u0000-\\u001f\\u0080-\\u009f\\u2028\\u2029\\u202a-\\u202e]"), "_")
+            .trim('_')
+        val parts = listOfNotNull(
+            ARTIFACT_PREFIX,
+            theme.takeIf { it.isNotBlank() },
+            stamp,
         )
-        return "$base-$stamp"
+        return parts.joinToString("-")
     }
 
     /** Module version follows the old packer: `yyyyMMddHHmm` build timestamp. */
     private fun buildVersion(): String =
         SimpleDateFormat("yyyyMMddHHmm", Locale.US).format(Date())
+
+    private companion object {
+        /** 产物文件名前缀，与模块/MTZ 的显示名保持一致。 */
+        const val ARTIFACT_PREFIX = "完美图标补全计划"
+    }
 }

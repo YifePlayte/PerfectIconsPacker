@@ -89,8 +89,6 @@
     <string name="common_save_failed">保存失败</string>
     <string name="common_cancel">取消</string>
     <string name="common_delete">删除</string>
-    <string name="output_name_module">HyperOS主题模块</string>
-    <string name="output_name_mtz">HyperOS主题完美图标补全</string>
     <string name="custom_overwrite">覆盖已有条目</string>
     <string name="custom_saved">已保存 %1$s</string>
     <string name="custom_static_help">0.png 与 1.png 均为正方形 PNG；至少设置一张，可只覆盖其中一层，未设置的一层沿用原图标。</string>

@@ -119,8 +119,9 @@ class ThemeBuildService(
                         version = request.versionName,
                         versionCode = versionCode(),
                         author = request.author,
-                        description = "HyperOS 4 完美图标补全 · ${request.styles.joinToString(", ")}",
-                        style = request.styles.joinToString(","),
+                        description = "完美图标补全计划 · ${themeLabel(request.styles)}",
+                        // 安装横幅直接用同一个主题名，保证两处措辞一致。
+                        style = themeLabel(request.styles),
                     ),
                 )
 
@@ -133,7 +134,7 @@ class ThemeBuildService(
                     File(outputDir, "$safeName.mtz"),
                     MtzBuilder.MtzInfo(
                         title = MTZ_TITLE,
-                        description = "HyperOS 4 完美图标补全\n主题：${request.styles.joinToString(", ")}",
+                        description = "完美图标补全计划\n主题：${themeLabel(request.styles)}",
                         author = request.author,
                         // The old packer's MTZ description pins 1.0.0 here; the
                         // timestamped version belongs to the module only.
@@ -178,6 +179,13 @@ class ThemeBuildService(
         else -> "$bytes B"
     }
 
+    /**
+     * 主题选择是单选（见 ResourcesViewModel），这里只做去空格与空值兜底，
+     * 保证描述与安装横幅用的是同一个名字。
+     */
+    private fun themeLabel(styles: Collection<String>): String =
+        styles.firstOrNull().orEmpty().trim().ifBlank { "HyperOS 4" }
+
     private fun sanitizeFileName(name: String): String {
         val cleaned = name
             // Direction overrides and line separators enable display spoofing.
@@ -195,7 +203,7 @@ class ThemeBuildService(
         // Identity carried over from the old packer so installs land as an
         // update of the existing module instead of a second one.
         const val MODULE_ID = "MIUIiconsplus"
-        const val MODULE_NAME = "MIUI 完美图标补全"
+        const val MODULE_NAME = "完美图标补全计划"
         const val MTZ_TITLE = "完美图标补全计划"
         const val MTZ_VERSION = "1.0.0"
         // Milliseconds keep parallel-entry builds from sharing a work dir.
