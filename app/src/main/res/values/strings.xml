@@ -28,7 +28,7 @@
     <string name="home_root_ksu_overlay_missing">KernelSU / APatch 需要启用一个提供挂载能力的元模块，system 目录才会生效。</string>
     <string name="home_root_refresh">重新检测</string>
     <string name="home_status_ready">图标资源已就绪</string>
-    <string name="home_status_latest_detail">已是最新 · 提交 %1$s</string>
+    <string name="home_status_latest_detail">提交 %1$s · 已是最新</string>
     <string name="home_status_commit_detail">提交 %1$s</string>
     <string name="home_status_detail_theme">主题 %1$s</string>
     <string name="home_theme_changed">主题已变更</string>
