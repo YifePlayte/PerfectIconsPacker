@@ -100,24 +100,48 @@ themes/common/layer_animating_icons/**
 
 ## Root
 
-- `libsu` 检测 root 与当前方案（Magisk / KernelSU），也负责执行安装命令。
-- `Shell.isAppGrantedRoot()` 是三态而不是布尔值：`true` 已授权、`false` 无 `su`
-  因此不可能有 root、`null` 表示存在 `su` 但授予状态未验证。`null` 不能当作拒绝。
-- 结论是**进程级缓存**，分两层：
-  - `Utils.currentRootState`：`-1` 未知 / `0` 无 `su` / `1` 有 `su` 未验证 /
-    `2` 已确认，首次判定后不再重算；
-  - 建好的主 shell，非 root shell 会被后续所有命令复用。
-- KernelSU 只在应用已授权时才让 `su` 可见，未授权时的 `false` 会被一直缓存，
-  于是运行期间再授权不生效，重启应用也不会改变结论。
-- 因此手动「重新检测」**无条件重置**这两层缓存：关闭缓存的 shell，并用反射把
-  `currentRootState` 置回 `-1`，随后跳过缓存结论直接执行一次 `su` 实测。
-  授权与撤销都能立即反映到界面。反射依赖字段名，`proguard-rules.pro` 保留该成员。
-- 进入首页的自动检测沿用缓存，避免每次切页都重建 shell、反复触发授权弹窗。
+- `libsu` 提供 root shell，`RootInstaller` 负责检测方案与执行安装命令。
+- 检测只做**一次** shell 往返，一条命令同时取回三样东西：
+  `id`（是否真拿到 root）、`su -v`（方案品牌）、元模块 id。
+  拆成多次 `exec()` 会让它们逐个争用 `MainShell` 的创建锁，任何一次卡住
+  `detect()` 就永不返回，界面会停在「正在检测」。
+- 方案识别读 `su -v` 的品牌后缀，而不是磁盘目录：
+  - Magisk `<version>:MAGISKSU`、KernelSU `<version>:KernelSU`、
+    APatch `<version>:APatch`；
+  - `su` 由当前生效的方案本体提供，且三者的 `-v` 都在连接 daemon 之前输出，
+    所以未授权也能读到品牌；
+  - 刻意不看 `/data/adb/magisk` 之类的目录：换装后残留目录会盖过真实方案；
+  - 无法识别的品牌如实归入 `Other`，不猜测。
+- root 结论看 `id` 的输出，不用 `Shell.isAppGrantedRoot()` 的三态缓存：
+  那套缓存（`Utils.currentRootState` / 主 shell）在运行期间授予或撤销 root 后
+  不会自行失效，重新检测必须用现场命令实测。
+- 重新检测时的清缓存规则：
+  - 反射把 `Utils.currentRootState` 置回 `-1`（`proguard-rules.pro` 保留该成员）；
+  - **只在当前主 shell 不是 root 时**才关闭它。`BuilderImpl.start()` 拿不到 root
+    会退化成 `exec("sh")`，而这个非 root shell 会被 `MainShell` 一直复用，
+    用户后来授权也不会换掉它；但已经工作的 root shell 不去打断。
+- 进入首页的自动检测沿用现有 shell，避免每次切页都重建会话、反复触发授权弹窗。
+- 检测侧有兜底：ViewModel 用原子互斥防止并发探测，并给 `detect()` 加超时，
+  保证 `isDetecting` 一定会复位，按钮不会永久变灰。
 - 只构建一个模块 zip；安装时按方案选择命令：
   - Magisk：`magisk --install-module <zip>`
   - KernelSU：`ksud module install <zip>`
-- 两种命令安装的是同一个文件，模块内容不做任何分支。
-- KernelSU 依赖 metamodule 提供 `/system` 挂载；
-  检测不到时提示用户，而不是生成另一套模块。
+  - APatch：`/data/adb/apd module install <zip>`（`apd` 不在 PATH，须写绝对路径）
+- 三种命令安装的是同一个文件，模块内容不做任何分支。
+- 安装输出用 libsu 的 `Job` + `CallbackList` 流式读取，不要自己
+  `bufferedReader().useLines`：libsu 在内部用唯一结束哨兵逐行读，读到哨兵即返回；
+  自己读到流末尾会永久阻塞，让 `exec0` 一直持锁，之后所有 `Shell.cmd()` 都卡死。
+- `CallbackList` 只把每行投递给回调、**自身不存储数据**，所以 `result.out` 恒为空；
+  行必须在回调里自己收集，且 `exec()` 返回时队列里可能还有未跑完的回调，
+  要先 `awaitTermination` 等它们结束再读取。
+- stdout 与 stderr 是两条独立的流（`ShellImpl` 里没有 `redirectErrorStream`），
+  而安装器的进度与错误都写 stderr，因此必须
+  `.to(stdoutCallback, stderrCallback)` 两路都挂，只挂 stdout 会得到空日志。
+- 安装日志界面上只保留最近若干行：大模块有数万行，逐行复制整个列表是 O(n²)，
+  会把主线程拖死。该窗口只用于界面显示；`InstallResult.output` 保存完整行，
+  但**不要**拿它去重建界面列表（`CallbackList` 传进来的那个列表长度为 0）。
+- KernelSU 与 APatch 都把 `/system` 挂载委托给元模块
+  （`/data/adb/metamodule`）：没有元模块时模块里的 `system/` 不会生效，
+  检测不到时提示用户，而不是生成另一套模块。Magisk 内建挂载，不需要。
 - 仅操作应用生成的 zip 与已知模块目录，不执行用户输入拼接的 shell。
 - 失败时返回退出码与 stderr，不自动重启设备。
