@@ -47,7 +47,7 @@
     <string name="log_close">关闭</string>
     <string name="home_result_path">输出：%1$s</string>
     <string name="home_result_stats">静态 %1$d · 动态 %2$d · 附加 %3$d · 用时 %4$d 秒</string>
-    <string name="home_status_hint">请到“资源”页同步图标资源。</string>
+    <string name="home_status_hint">请到「资源」页同步图标资源。</string>
     <string name="home_resync_hint">所选主题尚未同步，请到「资源」页重新同步。</string>
 
     <string name="resources_title">资源</string>
