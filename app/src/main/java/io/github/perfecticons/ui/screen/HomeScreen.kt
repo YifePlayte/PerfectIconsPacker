@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +46,8 @@ import io.github.perfecticons.ui.viewmodel.InstallUiState
 import io.github.perfecticons.ui.viewmodel.ModuleInstallViewModel
 import java.io.File
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -62,6 +65,15 @@ fun HomeScreen(
     // across recreation so the export does not silently vanish.
     var pendingExportPath by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingExportMime by rememberSaveable { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // 保存成功用 Snackbar 提示，与自定义页保持一致；提示显示完就清空状态，
+    // 否则返回本页会重复弹出。
+    LaunchedEffect(state.savedMessage) {
+        val message = state.savedMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearSavedMessage()
+    }
 
     // The shell keeps every tab composed in its pager: refresh whenever this
     // tab becomes the active one, so theme changes and re-syncs are reflected.
@@ -90,6 +102,12 @@ fun HomeScreen(
     PageScaffold(
         title = stringResource(R.string.home_title),
         padding = padding,
+        snackbarHost = {
+            SnackbarHost(
+                state = snackbarHostState,
+                modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+            )
+        },
     ) {
         item {
             val snapshot = state.snapshot
@@ -268,64 +286,50 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     }
+                    // 安装结果直接跟在触发它的按钮后面，不另起一张卡片。
+                    installState.outcome?.let { outcome ->
+                        when (outcome) {
+                            is InstallOutcome.Success -> {
+                                Text(
+                                    text = stringResource(R.string.install_success),
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.primary,
+                                )
+                                ActionRow {
+                                    ActionButton(
+                                        text = stringResource(R.string.home_result_log),
+                                        onClick = installViewModel::showLog,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    ActionButton(
+                                        text = stringResource(R.string.home_reboot),
+                                        onClick = installViewModel::reboot,
+                                        primary = true,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                            }
+
+                            is InstallOutcome.Failure -> {
+                                Text(
+                                    text = outcome.message,
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.error,
+                                )
+                                ActionButton(
+                                    text = stringResource(R.string.home_result_log),
+                                    onClick = installViewModel::showLog,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
         item {
             SectionCard(modifier = Modifier.animateItem(), title = stringResource(R.string.home_section_root)) {
                 InstallStatusBody(installState, installViewModel)
-            }
-        }
-        state.savedMessage?.let { message ->
-            item {
-                SectionCard {
-                    Text(
-                        text = message,
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.primary,
-                    )
-                }
-            }
-        }
-        installState.outcome?.let { outcome ->
-            item {
-                SectionCard(modifier = Modifier.animateItem(), contentSpacing = 8.dp) {
-                    when (outcome) {
-                        is InstallOutcome.Success -> {
-                            Text(
-                                text = stringResource(R.string.install_success),
-                                style = MiuixTheme.textStyles.footnote2,
-                                color = MiuixTheme.colorScheme.primary,
-                            )
-                            ActionRow {
-                                ActionButton(
-                                    text = stringResource(R.string.home_result_log),
-                                    onClick = installViewModel::showLog,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                ActionButton(
-                                    text = stringResource(R.string.home_reboot),
-                                    onClick = installViewModel::reboot,
-                                    primary = true,
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                        }
-
-                        is InstallOutcome.Failure -> {
-                            Text(
-                                text = outcome.message,
-                                style = MiuixTheme.textStyles.footnote2,
-                                color = MiuixTheme.colorScheme.error,
-                            )
-                            ActionButton(
-                                text = stringResource(R.string.home_result_log),
-                                onClick = installViewModel::showLog,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
-                }
             }
         }
         state.error?.let { message ->

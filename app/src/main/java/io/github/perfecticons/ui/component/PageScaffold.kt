@@ -38,6 +38,7 @@ fun PageScaffold(
     modifier: Modifier = Modifier,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
+    snackbarHost: @Composable () -> Unit = {},
     content: LazyListScope.() -> Unit,
 ) {
     val scrollBehavior = MiuixScrollBehavior()
@@ -59,6 +60,7 @@ fun PageScaffold(
                 )
             }
         },
+        snackbarHost = snackbarHost,
     ) { innerPadding ->
         Box(
             modifier = if (backdrop != null) {
