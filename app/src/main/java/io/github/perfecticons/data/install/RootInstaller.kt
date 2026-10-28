@@ -1,6 +1,7 @@
 package io.github.perfecticons.data.install
 
 import android.util.Log
+import com.topjohnwu.superuser.CallbackList
 import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,7 +50,6 @@ class RootInstaller {
 
     private companion object {
         const val TAG = "RootInstaller"
-        const val EXIT_MARKER = "__PIC_EXIT__:"
 
         /** libsu 缓存字段名，见 [dropCachedVerdict]。 */
         const val LIBSU_UTILS_CLASS = "com.topjohnwu.superuser.internal.Utils"
@@ -179,77 +179,62 @@ class RootInstaller {
         }
 
         onLine("$ $command")
+
+        // 行回调跑在独立的单线程 executor 上：既避免与 libsu 内部读取线程
+        // 抢 Shell.EXECUTOR，也保证 onLine 的调用顺序与输出顺序一致。
+        val lineExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        // CallbackList 只把每行投递到 executor 的 onAddElement，自身不存储数据，
+        // 所以 result.out 永远是空的——行必须在这里自己收集。
         val collected = java.util.Collections.synchronizedList(mutableListOf<String>())
-        val exitCode = java.util.concurrent.atomic.AtomicInteger(Int.MIN_VALUE)
-
-        runCatching {
-            val shell = Shell.getShell()
-            shell.execTask(object : Shell.Task {
-                override fun run(
-                    stdin: java.io.OutputStream,
-                    stdout: java.io.InputStream,
-                    stderr: java.io.InputStream,
-                ) {
-                    // Start both pumps before writing so neither pipe can fill up
-                    // and block the root process mid-install.
-                    val errThread = Thread {
-                        runCatching {
-                            stderr.bufferedReader().useLines { lines ->
-                                lines.forEach { line -> publish(line, onLine, collected) }
-                            }
-                        }
-                    }.apply { start() }
-
-                    val outThread = Thread {
-                        runCatching {
-                            stdout.bufferedReader().useLines { lines ->
-                                lines.forEach { line ->
-                                    if (line.startsWith(EXIT_MARKER)) {
-                                        exitCode.set(
-                                            line.removePrefix(EXIT_MARKER).trim().toIntOrNull() ?: 0,
-                                        )
-                                    } else {
-                                        publish(line, onLine, collected)
-                                    }
-                                }
-                            }
-                        }
-                    }.apply { start() }
-
-                    // Do not close stdin before the marker arrives: closing early
-                    // makes the shell drop the queued command line.
-                    stdin.bufferedWriter().apply {
-                        write(command)
-                        newLine()
-                        write("echo $EXIT_MARKER$?")
-                        newLine()
-                        flush()
-                    }
-
-                    outThread.join()
-                    errThread.join()
-                }
-            })
-        }.getOrElse {
-            return@withContext InstallResult.Failure(it.message ?: "执行失败", collected.toList())
+        fun sink() = object : CallbackList<String>(lineExecutor) {
+            override fun onAddElement(line: String) {
+                val text = line.trimEnd('\r')
+                if (text.isNotBlank()) collected += text
+                publish(line, onLine)
+            }
         }
+        // stdout 与 stderr 是两条独立的流（ShellImpl 里没有 redirectErrorStream），
+        // 而安装器的进度与错误都写 stderr。只挂 stdout 会得到空日志，
+        // 所以两路各挂一个回调，而不是靠 2>&1 改命令。
+        val stdout = sink()
+        val stderr = sink()
+        Log.i(TAG, "install start command=$command")
 
-        val code = exitCode.get()
-        return@withContext if (code == 0 || code == Int.MIN_VALUE) {
-            InstallResult.Success(collected.toList())
-        } else {
-            InstallResult.Failure("安装失败（退出码 $code）", collected.toList())
+        val result = runCatching {
+            Shell.getShell().newJob()
+                .add(command)
+                .to(stdout, stderr)
+                .exec()
+        }.getOrElse {
+            lineExecutor.shutdown()
+            return@withContext InstallResult.Failure(it.message ?: "执行失败")
+        }
+        // exec() 返回时 executor 队列里可能仍有未跑完的回调，必须等它们结束，
+        // 否则会丢尾部日志。
+        lineExecutor.shutdown()
+        if (!lineExecutor.awaitTermination(60, java.util.concurrent.TimeUnit.SECONDS)) {
+            lineExecutor.shutdownNow()
+        }
+        val output = collected.toList()
+        Log.i(TAG, "install done code=${result.code} lines=${output.size}")
+        val code = result.code
+        return@withContext when {
+            code == 0 -> InstallResult.Success(output)
+            code == Shell.Result.JOB_NOT_EXECUTED ->
+                InstallResult.Failure("root shell 不可用，请点「重新检测」后重试", output)
+            output.isEmpty() -> InstallResult.Failure(
+                "安装失败（退出码 $code），管理器未输出任何日志；" +
+                    "KernelSU 可检查元模块是否启用，或查看 logcat 里的 ksud 记录",
+                output,
+            )
+            else -> InstallResult.Failure("安装失败（退出码 $code）", output)
         }
     }
 
-    private fun publish(
-        line: String,
-        onLine: (String) -> Unit,
-        collected: MutableList<String>,
-    ) {
+    /** 展示前清洗：去掉行尾回车，并跳过空行。 */
+    private fun publish(line: String, onLine: (String) -> Unit) {
         val text = line.trimEnd('\r')
         if (text.isBlank()) return
-        collected += text
         onLine(text)
     }
 
